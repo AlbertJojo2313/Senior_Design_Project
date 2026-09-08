@@ -1,5 +1,9 @@
 # Sponsor Notes
+## Date: 09/08/26
 
+---
+
+### Recap
 - Sponsor: Still working on collecting and making the dataset
 
 - Looking for financial aid programs that contributed to student success (retention, GPA ...)
