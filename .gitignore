@@ -1,3 +1,5 @@
 .iwe/
 .pyenv/
 .DS_Store
+data/
+Notes/

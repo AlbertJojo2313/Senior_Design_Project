@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling >=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/"]
+[project]
+name = "Financial_Aid_Impact_Analysis_Project"
+version = "0.0.1"
+authors = [{ name = "Albert Jojo" }, { name = "John Slot" }]
+description = "A project that analyzes different financial aid programs that contribute to student success."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["pandas", "scikit-learn", "pandas-stubs"]
+
+
+[project.optional-dependencies]
+dev = ["ruff", "pyright"]
