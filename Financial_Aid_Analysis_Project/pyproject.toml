@@ -11,7 +11,7 @@ authors = [{ name = "Albert Jojo" }, { name = "John Slot" }]
 description = "A project that analyzes different financial aid programs that contribute to student success."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["pandas", "scikit-learn", "pandas-stubs"]
+dependencies = ["pandas", "scikit-learn", "pandas-stubs", "pyarrow"]
 
 
 [project.optional-dependencies]
