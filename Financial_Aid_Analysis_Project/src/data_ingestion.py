@@ -3,17 +3,24 @@ Data Discovery (Recursively) and ingests the data parallelly.
 Author: Albert Jojo
 """
 
+from __future__ import annotations
+
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Queue
+from typing import Literal
 
 import pandas as pd
 import pyarrow as pa
 import pyarrow.csv as pv
 
-_QueueItem = tuple[int, str, pd.DataFrame | BaseException | None]
+_QueueItem = (
+    tuple[int, Literal["chunk"], pd.DataFrame]
+    | tuple[int, Literal["error"], BaseException]
+    | tuple[int, Literal["done"], None]
+)
 
 
 # def retrieve_files(file_paths: list[str]) -> pd.DataFrame:
@@ -33,7 +40,7 @@ class DataIngestor:
     chunksize: int = 250_000
     block_size: int = 64 * 1024 * 1024  # bytes per batch
     queue_size: int = 8
-    validate_schema: bool = True
+    # validate_schema: bool = True
 
     def __post_init__(self) -> None:
         self.root_dir = Path(self.root_dir)
@@ -44,11 +51,11 @@ class DataIngestor:
         if self.queue_size < 1:
             raise ValueError("queue_size must be atleast 1.")
 
-    def read_schema(self, path: Path) -> pa.Schema:
-        reader = pv.open_csv(
-            path, read_options=pv.ReadOptions(block_size=self.block_size)
-        )
-        return reader.schema
+    # def read_schema(self, path: Path) -> pa.Schema:
+    #     reader = pv.open_csv(
+    #         path, read_options=pv.ReadOptions(block_size=self.block_size)
+    #     )
+    #     return reader.schema
 
     def discover_files(self) -> list[Path]:
         """Recursively find CSV files matching the configured prefixes"""
@@ -66,6 +73,21 @@ class DataIngestor:
             )
         return files
 
+    def count_rows(self, path: Path) -> int:
+        """Count data rows in a CSV file without materializing the whole file."""
+        if path.stat().st_size == 0:
+            return 0
+
+        reader = pv.open_csv(
+            path,
+            read_options=pv.ReadOptions(block_size=self.block_size),
+        )
+        return sum(batch.num_rows for batch in reader)
+
+    def count_rows_by_file(self) -> dict[Path, int]:
+        """Return the data-row count for each discovered CSV file."""
+        return {path: self.count_rows(path) for path in self.discover_files()}
+
     def _read_file(
         self, file_index: int, path: Path, output: Queue[_QueueItem]
     ) -> None:
@@ -79,7 +101,7 @@ class DataIngestor:
                 output.put(
                     (file_index, "chunk", pa.Table.from_batches([batch]).to_pandas())
                 )
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001
             output.put((file_index, "error", error))
         finally:
             output.put((file_index, "done", None))
@@ -97,15 +119,16 @@ class DataIngestor:
                 pool.submit(self._read_file, file_index, path, output)
 
             while remaining > 0:
-                match output.get():
+                raw_item = output.get()
+                match raw_item:
                     case (_, "chunk", pd.DataFrame() as chunk):
                         yield chunk
                     case (file_index, "error", BaseException() as error):
                         errors.append((files[file_index], error))
                     case (_, "done", _):
                         remaining -= 1
-                    case item:
-                        raise TypeError(f"Unexpected queue item: {item!r}")
+                    case _:
+                        raise TypeError(f"Unexpected queue item: {raw_item!r}")
 
         if errors:
             path, error = errors[0]

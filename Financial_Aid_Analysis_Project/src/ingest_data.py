@@ -10,12 +10,24 @@ def save_dataset(
 ) -> None:
     """Write all matching CSV chunks to one combined CSV file."""
     ingestor = DataIngestor(root_dir=root_dir, prefixes=prefixes)
+    source_row_counts = ingestor.count_rows_by_file()
+    expected_rows = sum(source_row_counts.values())
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         with output_path.open("w", newline="") as f:
             for chunk_index, chunk in enumerate(ingestor.iter_chunks()):
                 chunk.to_csv(f, header=chunk_index == 0, index=False)
+
+        combined_rows = ingestor.count_rows(output_path)
+        source_counts = ", ".join(
+            f"{path.name}: {count}" for path, count in source_row_counts.items()
+        )
+        assert combined_rows == expected_rows, (
+            f"Row count mismatch for {output_path}: source files contain "
+            f"{expected_rows} rows ({source_counts}), but the combined dataset "
+            f"contains {combined_rows} rows."
+        )
     except BaseException:
         output_path.unlink(
             missing_ok=True
