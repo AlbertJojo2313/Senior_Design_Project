@@ -39,6 +39,7 @@ output_columns:
   - Entry_Date
   - STUDENT_TYPE
   - AA_AS
+  - Entry_HS_GPA
   - RETAINED_YR1
   - RETAINED_YR2
   - RETAINED_YR3
@@ -75,9 +76,9 @@ output_columns:
   - aid_yr4_src_other
   - aid_yr4_src_private
   - aid_yr4_src_state
-  - first_term_id
-  - first_term_descr
-  - first_acad_year
+  #- first_term_id
+  # - first_term_descr
+  # - first_acad_year
   - Credits_Transfered
   - CUM_TOTHRS_EARN_BEGIN_TERM
   - CUM_Credits_Taken_UCF_BEGIN_TERM
