@@ -5,6 +5,7 @@ Author: Albert Jojo
 
 from __future__ import annotations
 
+import csv
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -93,9 +94,17 @@ class DataIngestor:
     ) -> None:
         """Read one file lazily and put its chunks into the bounded queue"""
         try:
+            with path.open("r", newline="", encoding="utf-8-sig") as source:
+                columns = next(csv.reader(source), [])
+            text_columns = {
+                column: pa.string()
+                for column in ("STUDENT_ID", "ITEM_TYPE")
+                if column in columns
+            }
             reader = pv.open_csv(
                 path,
                 read_options=pv.ReadOptions(block_size=self.block_size),
+                convert_options=pv.ConvertOptions(column_types=text_columns),
             )
             for batch in reader:
                 output.put(
