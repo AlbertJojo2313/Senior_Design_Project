@@ -35,11 +35,17 @@ post_merge_drop_cols: [BOE_RECENT_TYPE, BOE_RECENT_TYPE_DESCR, BOE_RECENT_TYPE_D
 output_columns:
   - STUDENT_ID
   - COHORT_YEAR
+  - Entry_CIP
   - Entry_Age
   - Entry_Date
   - STUDENT_TYPE
   - AA_AS
   - Entry_HS_GPA
+  - SAT_TOTAL
+  - SAT_VERB
+  - ACT_TOTAL
+  - ACT_VERB
+  - ACT_MATH
   - RETAINED_YR1
   - RETAINED_YR2
   - RETAINED_YR3
@@ -79,8 +85,8 @@ output_columns:
   #- first_term_id
   # - first_term_descr
   # - first_acad_year
-  - Credits_Transfered
-  - CUM_TOTHRS_EARN_BEGIN_TERM
+  # - Credits_Transfered
+  # - CUM_TOTHRS_EARN_BEGIN_TERM
   - CUM_Credits_Taken_UCF_BEGIN_TERM
   - Credits_Transfered_Max
   - yr1_n_terms
