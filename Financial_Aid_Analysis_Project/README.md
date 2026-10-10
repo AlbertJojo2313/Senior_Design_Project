@@ -1,9 +1,9 @@
 # Financial Aid Impact Analysis
 
-This project combines yearly financial-aid and student-cohort CSV files into
-two datasets for analysis. The ingestion code is in `src/ingest_data.py`; it
-discovers matching CSV files recursively, reads them in chunks, and writes the
-combined files under `data/combined/`.
+This project combines yearly financial-aid and student-term data, then builds
+EDA and machine-learning datasets for analysis. Ingestion and dataset creation
+are implemented in `src/preprocessing/`; generated Parquet files are written
+under `data/combined/` and `data/derived/`.
 
 ## Run the ingestion from start to finish
 
@@ -45,8 +45,8 @@ ingestion searches recursively, selecting files by filename prefix:
 
 | Dataset | Required filename prefix | Combined output |
 | --- | --- | --- |
-| Financial aid | `FINAID_` | `data/combined/financial_aid.csv` |
-| Student cohort | `STUDENT_TERM_` | `data/combined/student_cohort.csv` |
+| Financial aid | `FINAID_` | `data/combined/financial_aid.parquet` |
+| Student term | `STUDENT_TERM_` | `data/combined/student_term.parquet` |
 
 For example, `FINAID_2025.csv` and `STUDENT_TERM_2025.csv` both match. Each
 dataset needs at least one matching CSV file. Keep the columns and their types
@@ -58,30 +58,49 @@ by Git, so input data and generated outputs are not committed.
 From the project directory, run:
 
 ```bash
-python -m src.ingest_data
+python -m src.preprocessing.ingest_data
 ```
 
-The script creates `data/combined/` if needed and writes both combined CSVs.
-Running it again replaces those output files with newly generated datasets.
+The script creates `data/combined/` if needed and writes both combined
+Parquet files. Running it again replaces those output files.
 
-### 4. Confirm the result
+### 4. Create analysis datasets
+
+With the combined datasets and `Student_Static_Data.csv` in place, create the
+four EDA splits and the ML master dataset:
+
+```bash
+python -m src.preprocessing.eda_dataset_creation
+python -m src.preprocessing.ml_dataset_creation
+```
+
+The EDA outputs are written to `data/derived/eda/`; the ML output is
+`data/derived/ml_dataset.parquet`. Configuration is in `configs/eda.yaml` and
+`configs/ml.yaml`. The ML configuration's `expected_rows` is a source-data
+check; set it to `null` to disable that check.
+
+### 5. Confirm the result
 
 Check that these files were created:
 
 ```text
-data/combined/financial_aid.csv
-data/combined/student_cohort.csv
+data/combined/financial_aid.parquet
+data/combined/student_term.parquet
+data/derived/eda/eda_term_A.parquet
+data/derived/eda/eda_term_B.parquet
+data/derived/eda/eda_aid_A.parquet
+data/derived/eda/eda_aid_B.parquet
+data/derived/ml_dataset.parquet
 ```
 
-For each output, ingestion compares its data-row count with the total row count
-of the matching source files. A mismatch raises an error and removes the
-incomplete output file. Missing input directories or missing matching CSVs
+Ingestion compares combined row counts with the total from its matching source
+files. All Parquet outputs are reloaded and checked for matching shape and
+dtypes. A failed verification removes the incomplete output. Missing inputs
 also raise an error.
 
 ## Run the tests
 
-To run the ingestion tests, install the development dependencies and use
-Python's unittest runner:
+Install the development dependencies and run the synthetic fixture tests:
 
 ```bash
 python -m pip install -e ".[dev]"
