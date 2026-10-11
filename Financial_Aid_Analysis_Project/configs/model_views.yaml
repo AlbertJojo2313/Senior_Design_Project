@@ -1,0 +1,58 @@
+input_path: data/derived/master_table.parquet
+split_path: data/derived/split_v1.parquet
+views_output_dir: data/derived
+views_config_path: data/derived/views_config.json
+test_size: 0.2
+random_state: 42
+include_entry_load: false
+aid_sources: [federal, institutional, private, other, state]
+entry_load_columns:
+  - SUMMER_FULL_TIME
+  - SUMMER_PART_TIME
+  - FALL_FULL_TIME
+  - FALL_PART_TIME
+cohorts:
+  ftic:
+    type: B
+    num: [Entry_Age, Entry_HS_GPA, ACT_TOTAL, Credits_Transfered_Max]
+    cat: [COHORT_YEAR, CIP2]
+  transfer:
+    type: A
+    num: [Entry_Age, Entry_HS_GPA, Credits_Transfered_Max]
+    cat: [COHORT_YEAR, CIP2]
+views:
+  ftic_ret1:
+    cohort: ftic
+    outcome: RETAINED_YR1
+    aid_years: [1]
+    require: null
+  ftic_ret2:
+    cohort: ftic
+    outcome: RETAINED_YR2
+    aid_years: [1, 2]
+    require: RETAINED_YR1
+  ftic_grad3:
+    cohort: ftic
+    outcome: "Graduated Count Yr 3"
+    aid_years: [1]
+    require: null
+  ftic_grad4:
+    cohort: ftic
+    outcome: "Graduated Count Yr 4"
+    aid_years: [1]
+    require: null
+  tr_ret1:
+    cohort: transfer
+    outcome: RETAINED_YR1
+    aid_years: [1]
+    require: null
+  tr_ret2:
+    cohort: transfer
+    outcome: RETAINED_YR2
+    aid_years: [1, 2]
+    require: RETAINED_YR1
+  tr_grad3:
+    cohort: transfer
+    outcome: "Graduated Count Yr 3"
+    aid_years: [1]
+    require: null

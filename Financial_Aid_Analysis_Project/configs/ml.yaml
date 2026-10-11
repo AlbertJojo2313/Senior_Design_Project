@@ -44,7 +44,7 @@ output_columns:
   - SAT_TOTAL
   - SAT_VERB
   - ACT_TOTAL
-  - ACT_VERB
+  - ACT_ENG
   - ACT_MATH
   - RETAINED_YR1
   - RETAINED_YR2
@@ -113,4 +113,4 @@ output_columns:
   - yr2_end_cum_hrs
   - yr3_end_cum_hrs
   - yr4_end_cum_hrs
-output_path: data/derived/ml_dataset.parquet
+output_path: data/derived/master_table.parquet
