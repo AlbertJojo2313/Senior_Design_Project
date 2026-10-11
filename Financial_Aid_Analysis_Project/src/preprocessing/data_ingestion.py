@@ -24,15 +24,6 @@ _QueueItem = (
 )
 
 
-# def retrieve_files(file_paths: list[str]) -> pd.DataFrame:
-#     """Read and concatenates a list of csv paths"""
-#     if not file_paths:
-#         raise ValueError("file_paths cannot be empty")
-#     with ThreadPoolExecutor(max_workers=min(4, len(file_paths))) as pool:
-#         frames = list(pool.map(pd.read_csv, file_paths))
-#     return pd.concat(frames, ignore_index=True)
-
-
 @dataclass
 class DataIngestor:
     root_dir: Path
@@ -41,7 +32,6 @@ class DataIngestor:
     chunksize: int = 250_000
     block_size: int = 64 * 1024 * 1024  # bytes per batch
     queue_size: int = 8
-    # validate_schema: bool = True
 
     def __post_init__(self) -> None:
         self.root_dir = Path(self.root_dir)
@@ -51,12 +41,6 @@ class DataIngestor:
             raise ValueError("chunk_size >= 1")
         if self.queue_size < 1:
             raise ValueError("queue_size must be atleast 1.")
-
-    # def read_schema(self, path: Path) -> pa.Schema:
-    #     reader = pv.open_csv(
-    #         path, read_options=pv.ReadOptions(block_size=self.block_size)
-    #     )
-    #     return reader.schema
 
     def discover_files(self) -> list[Path]:
         """Recursively find CSV files matching the configured prefixes"""

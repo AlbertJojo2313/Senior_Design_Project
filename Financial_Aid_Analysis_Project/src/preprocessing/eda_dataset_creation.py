@@ -1,15 +1,36 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
-from src.preprocessing.dataset_creation import DatasetCreation
+from src.preprocessing.dataset_creation import (
+    load_config,
+    load_sources,
+    resolve_project_dir,
+)
 from src.utils.save import save
 
 
-class EDADatasetCreation(DatasetCreation):
-    config_name = "eda.yaml"
+class EDADatasetCreation:
+    def __init__(
+        self,
+        config_path: str | Path | None = None,
+        project_dir: str | Path | None = None,
+    ) -> None:
+        self.project_dir = resolve_project_dir(project_dir)
+        self.cfg: dict[str, Any] = load_config(
+            "eda.yaml", self.project_dir, config_path
+        )
+        self.logger = logging.getLogger(__name__)
+
+    def log(self, message: str) -> None:
+        self.logger.info(message)
+
+    def load_sources(self) -> dict[str, pd.DataFrame]:
+        return load_sources(self.project_dir, self.logger)
 
     def create_datasets(
         self, sources: dict[str, pd.DataFrame] | None = None

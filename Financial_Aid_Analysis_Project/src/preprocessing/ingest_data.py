@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pandas as pd
-
 from src.preprocessing.data_ingestion import DataIngestor
 from src.utils.save import save
 
