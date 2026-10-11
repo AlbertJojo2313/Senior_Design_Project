@@ -4,9 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.preprocessing.dataset_creation import DatasetCreation
 from src.preprocessing.eda_dataset_creation import EDADatasetCreation
-from src.preprocessing.ml_dataset_creation import MLDatasetCreation
+from src.preprocessing.master_table_creation import MasterTableCreation
 
 
 def write_config(project_dir: Path, filename: str, content: str) -> Path:
@@ -52,7 +51,7 @@ output_columns: [STUDENT_ID, Entry_CIP, AA_AS, SPRING_FULL_TIME, SPRING_PART_TIM
 output_path: data/derived/ml_dataset.parquet
 """,
         )
-        self.ml = MLDatasetCreation(
+        self.master_table = MasterTableCreation(
             config_path=self.ml_config, project_dir=self.project_dir
         )
 
@@ -61,10 +60,6 @@ output_path: data/derived/ml_dataset.parquet
 
 
 class TestDatasetSourceLoading(DatasetCreationTestCase):
-    def test_base_class_is_abstract(self) -> None:
-        with self.assertRaises(TypeError):
-            DatasetCreation()  # type: ignore[abstract]
-
     def test_load_sources_normalizes_keys_and_filters_recipients(self) -> None:
         raw_dir = self.project_dir / "data" / "raw_data"
         combined_dir = self.project_dir / "data" / "combined"
@@ -83,14 +78,14 @@ class TestDatasetSourceLoading(DatasetCreationTestCase):
             encoding="utf-8",
         )
 
-        sources = self.ml.load_sources()
+        sources = self.master_table.load_sources()
         self.assertEqual(sources["financial_aid"]["ITEM_TYPE"].iloc[0], "00001234")
         self.assertEqual(sources["student_term"]["STUDENT_ID"].tolist(), ["001"])
         self.assertEqual(sources["student_static"]["STUDENT_ID"].tolist(), ["001"])
         self.assertEqual(sources["financial_aid"]["AID_YEAR"].iloc[0], 2020)
 
 
-class TestMLDatasetCreation(DatasetCreationTestCase):
+class TestMasterTableCreation(DatasetCreationTestCase):
     def test_aid_wide_has_fixed_columns_and_year_placement(self) -> None:
         static = pd.DataFrame(
             {
@@ -107,7 +102,7 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
             }
         )
 
-        wide = self.ml.build_aid_wide(aid, static).set_index("STUDENT_ID")
+        wide = self.master_table.build_aid_wide(aid, static).set_index("STUDENT_ID")
         self.assertEqual(wide.loc["s2", "aid_yr1_src_federal"], 0)
         self.assertEqual(wide.loc["s2", "aid_yr2_src_state"], 1)
         self.assertEqual(wide.loc["s1", "aid_yr1_src_other"], 1)
@@ -125,7 +120,7 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
             }
         )
 
-        prepared = self.ml.prepare_term(term)
+        prepared = self.master_table.prepare_term(term)
         self.assertEqual(len(prepared), 1)
         self.assertEqual(prepared["value"].iloc[0], "complete")
 
@@ -142,7 +137,7 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
             }
         )
 
-        first = self.ml.build_first_term(term)
+        first = self.master_table.build_first_term(term)
         self.assertTrue(pd.isna(first["CF_BOE_NM_IND"].iloc[0]))
         self.assertEqual(first["Credits_Transfered_Max"].iloc[0], 4)
 
@@ -155,7 +150,7 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
         )
         static = pd.DataFrame({"STUDENT_ID": ["s1"], "COHORT_YEAR": ["2019-2020"]})
 
-        with_year = self.ml.add_term_year(term, static)
+        with_year = self.master_table.add_term_year(term, static)
         self.assertEqual(with_year["term_yr"].tolist(), [1, 2])
 
     def test_year_summaries_keep_absent_year_metrics_missing(self) -> None:
@@ -172,7 +167,7 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
             }
         )
 
-        summary = self.ml.build_year_summaries(term).iloc[0]
+        summary = self.master_table.build_year_summaries(term).iloc[0]
         self.assertTrue(pd.isna(summary["yr3_n_terms"]))
         self.assertTrue(pd.isna(summary["yr3_end_cum_gpa"]))
         self.assertEqual(summary["yr1_n_terms"], 1)
@@ -204,9 +199,9 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
                 "yr3_end_cum_gpa": [None],
             }
         )
-        self.ml.aid_mismatch_ids = set()
+        self.master_table.aid_mismatch_ids = set()
 
-        master = self.ml.build_master(static, aid_wide, first_term, by_year)
+        master = self.master_table.build_master(static, aid_wide, first_term, by_year)
         self.assertEqual(len(master), 2)
         self.assertTrue(master["STUDENT_ID"].is_unique)
         self.assertTrue(master["first_term_id"].notna().all())
@@ -257,7 +252,7 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
             "cohort_mismatch_aid": False,
         }
         source = pd.DataFrame([row])
-        cleaned = self.ml.post_merge_cleanup(source)
+        cleaned = self.master_table.post_merge_cleanup(source)
 
         self.assertTrue(
             cleaned[["SAT_TOTAL", "SAT_VERB", "SAT_MATH"]].isna().all().all()
@@ -272,7 +267,9 @@ class TestMLDatasetCreation(DatasetCreationTestCase):
             cleaned.isna().sum().to_dict(),
             expected_nulls.to_dict(),
         )
-        self.assertEqual(cleaned.columns.tolist(), self.ml.cfg["output_columns"])
+        self.assertEqual(
+            cleaned.columns.tolist(), self.master_table.cfg["output_columns"]
+        )
         self.assertEqual(cleaned["STUDENT_ID"].iloc[0], "s1")
         self.assertEqual(cleaned["Entry_CIP"].iloc[0], "001234")
         self.assertEqual(cleaned["AA_AS"].iloc[0], 1)
