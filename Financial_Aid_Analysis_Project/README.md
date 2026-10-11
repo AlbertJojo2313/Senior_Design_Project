@@ -1,9 +1,9 @@
 # Financial Aid Impact Analysis
 
 This project combines yearly financial-aid and student-term data, then builds
-EDA and machine-learning datasets for analysis. Ingestion and dataset creation
-are implemented in `src/preprocessing/`; generated Parquet files are written
-under `data/combined/` and `data/derived/`.
+EDA datasets and a one-row-per-student master table for analysis. Ingestion and
+dataset creation are implemented in `src/preprocessing/`; generated Parquet
+files are written under `data/combined/` and `data/derived/`.
 
 ## Run the ingestion from start to finish
 
@@ -71,12 +71,13 @@ four EDA splits and the ML master dataset:
 
 ```bash
 python -m src.preprocessing.eda_dataset_creation
-python -m src.preprocessing.ml_dataset_creation
+python -m src.preprocessing.master_table_creation
 ```
 
-The EDA outputs are written to `data/derived/eda/`; the ML output is
-`data/derived/ml_dataset.parquet`. Configuration is in `configs/eda.yaml` and
-`configs/ml.yaml`. The ML configuration's `expected_rows` is a source-data
+The EDA outputs are written to `data/derived/eda/`; the master table is written
+to `data/derived/ml_dataset.parquet` for compatibility with the existing
+modeling-view pipeline. Configuration is in `configs/eda.yaml` and
+`configs/ml.yaml`. The master-table configuration's `expected_rows` is a source-data
 check; set it to `null` to disable that check.
 
 ### 5. Confirm the result
