@@ -1,14 +1,11 @@
 # Financial Aid Impact Analysis
 
-This project combines yearly financial-aid and student-term data, then builds
-EDA datasets and a one-row-per-student master table for analysis. Ingestion and
-dataset creation are implemented in `src/preprocessing/`; generated Parquet
-files are written under `data/combined/` and `data/derived/`.
+This project combines financial-aid and student-term records, creates EDA
+datasets and an ML master table, and builds reproducible train/test modeling
+views. Run the commands below from the `Financial_Aid_Analysis_Project`
+directory (the directory containing this README).
 
-## Run the ingestion from start to finish
-
-Run these commands from the `Financial_Aid_Analysis_Project` directory (the
-directory containing this README).
+## Run the full pipeline
 
 ### 1. Set up Python
 
@@ -32,76 +29,107 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-### 2. Add the source CSV files
+### 2. Provide the source data
 
-Create the input directory:
+Place the CSV files under `data/raw_data/` (subdirectories are supported):
 
-```bash
-mkdir -p data/raw_data
-```
-
-Copy the source CSV files into `data/raw_data/` (or its subdirectories). The
-ingestion searches recursively, selecting files by filename prefix:
-
-| Dataset | Required filename prefix | Combined output |
+| Dataset | Required file | Files combined by prefix |
 | --- | --- | --- |
-| Financial aid | `FINAID_` | `data/combined/financial_aid.parquet` |
-| Student term | `STUDENT_TERM_` | `data/combined/student_term.parquet` |
+| Static student data | `Student_Static_Data.csv` | Read directly |
+| Financial aid | One or more CSVs starting with `FINAID_` | Yes |
+| Student term | One or more CSVs starting with `STUDENT_TERM_` | Yes |
 
-For example, `FINAID_2025.csv` and `STUDENT_TERM_2025.csv` both match. Each
-dataset needs at least one matching CSV file. Keep the columns and their types
-consistent among files within each dataset. The `data/` directory is ignored
-by Git, so input data and generated outputs are not committed.
+The source files must include the columns required by `configs/`. Keep schemas
+consistent among files for the same dataset. The `data/` directory is ignored
+by Git; each person running the pipeline must have access to the source data.
 
-### 3. Run ingestion
+If combined aid and term files already exist at
+`data/combined/financial_aid.parquet` (or `.csv`) and
+`data/combined/student_term.parquet` (or `.csv`), the EDA and master-table
+steps can read those instead of combining the prefixed CSVs. The static CSV is
+still read from `data/raw_data/Student_Static_Data.csv`. To run the explicit
+ingestion step below, the prefixed raw CSVs must be present.
 
-From the project directory, run:
+### 3. Combine the raw financial-aid and student-term files
 
 ```bash
 python -m src.preprocessing.ingest_data
 ```
 
-The script creates `data/combined/` if needed and writes both combined
-Parquet files. Running it again replaces those output files.
-
-### 4. Create analysis datasets
-
-With the combined datasets and `Student_Static_Data.csv` in place, create the
-four EDA splits and the ML master dataset:
-
-```bash
-python -m src.preprocessing.eda_dataset_creation
-python -m src.preprocessing.master_table_creation
-```
-
-The EDA outputs are written to `data/derived/eda/`; the master table is written
-to `data/derived/ml_dataset.parquet` for compatibility with the existing
-modeling-view pipeline. Configuration is in `configs/eda.yaml` and
-`configs/ml.yaml`. The master-table configuration's `expected_rows` is a source-data
-check; set it to `null` to disable that check.
-
-### 5. Confirm the result
-
-Check that these files were created:
+This recursively discovers `FINAID_*.csv` and `STUDENT_TERM_*.csv`, combines
+each set, and writes:
 
 ```text
 data/combined/financial_aid.parquet
 data/combined/student_term.parquet
+```
+
+### 4. Create the EDA datasets
+
+```bash
+python -m src.preprocessing.eda_dataset_creation
+```
+
+This joins the source tables and creates student-type A/B datasets:
+
+```text
 data/derived/eda/eda_term_A.parquet
 data/derived/eda/eda_term_B.parquet
 data/derived/eda/eda_aid_A.parquet
 data/derived/eda/eda_aid_B.parquet
-data/derived/ml_dataset.parquet
 ```
 
-Ingestion compares combined row counts with the total from its matching source
-files. All Parquet outputs are reloaded and checked for matching shape and
-dtypes. A failed verification removes the incomplete output. Missing inputs
-also raise an error.
+### 5. Create the ML master table
+
+```bash
+python -m src.preprocessing.master_table_creation
+```
+
+The output is:
+
+```text
+data/derived/master_table.parquet
+```
+
+The expected row count is configured in `configs/ml.yaml`. Set
+`expected_rows: null` there to disable that source-data check when working with
+a different dataset.
+
+### 6. Create modeling train/test views
+
+```bash
+python -m src.preprocessing.modeling_dataset
+```
+
+This reads the master table, creates a reproducible student-level split, builds
+and preprocesses the configured views, and writes:
+
+```text
+data/derived/split_v1.parquet
+data/derived/views/view_<name>_train.parquet
+data/derived/views/view_<name>_test.parquet
+data/derived/views/views_config.json
+```
+
+Each view file contains its features and a `y` outcome column. The configured
+view names, feature columns, and outcomes are in `configs/model_views.yaml`;
+the generated `views_config.json` contains the corresponding view settings.
+
+For example, use `view_ftic_ret1_train.parquet` to train or cross-validate on
+the FTIC first-year-retention training set. Separate the `y` column from the
+features before fitting a model. Use the preprocessor created from the matching
+view settings so nullable Parquet values are normalized before imputation.
+
+### 7. Verify the outputs
+
+Each Parquet save is read back and checked for matching shape and dtypes.
+Ingestion also checks that the combined row counts match the source CSV row
+counts. A failed write verification removes the incomplete output and raises
+an error.
 
 ## Run the tests
 
-Install the development dependencies and run the synthetic fixture tests:
+Install the development dependencies and run the test suite:
 
 ```bash
 python -m pip install -e ".[dev]"
