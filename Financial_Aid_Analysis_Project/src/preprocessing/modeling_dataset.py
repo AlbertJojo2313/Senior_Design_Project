@@ -135,10 +135,14 @@ class ModelingDatasetCreation:
 
         flags = cfg["flags"] + cfg["treatment"]
         X = df[cfg["num"] + cfg["cat"] + flags].copy()
-        X[cfg["num"] + flags] = X[cfg["num"] + flags].astype("float64")
-        X[cfg["cat"]] = (
-            X[cfg["cat"]].astype(object).where(X[cfg["cat"]].notna(), np.nan)
-        )
+        for column in cfg["num"] + flags:
+            X[column] = X[column].to_numpy(dtype=np.float64, na_value=np.nan)
+        for column in cfg["cat"]:
+            X[column] = pd.Series(
+                X[column].to_numpy(dtype=object, na_value=np.nan),
+                index=X.index,
+                dtype=object,
+            )
         y = df[cfg["outcome"]].astype(int)
 
         train = df["split"].eq("train")
