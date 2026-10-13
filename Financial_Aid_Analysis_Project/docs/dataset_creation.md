@@ -32,7 +32,7 @@ flowchart TD
     Ingest --> CombinedAid["data/combined/financial_aid.parquet"]
     Ingest --> CombinedTerm["data/combined/student_term.parquet"]
 
-    CombinedAid --> Shared["DatasetCreation<br/>load and normalize sources"]
+    CombinedAid --> Shared["Shared source-loading functions"]
     CombinedTerm --> Shared
     StaticCSV --> Shared
     Shared --> students["Keep aid students<br/>normalize STUDENT_ID"]
@@ -44,7 +44,7 @@ flowchart TD
     EdaAid --> EdaSplit
     EdaSplit --> EdaFiles["Four EDA Parquet files<br/>A/transfer and B/FTIC"]
 
-    students --> ML["MLDatasetCreation"]
+    students --> ML["MasterTableCreation"]
     ML --> AidWide["Aid long-to-wide<br/>year/source indicators"]
     ML --> TermClean["Deduplicate and date terms"]
     TermClean --> FirstTerm["First-term attributes"]
@@ -65,10 +65,10 @@ DataFrame; a failed write or check removes the incomplete output.
 
 ### Shared source preparation
 
-`DatasetCreation` centralizes configuration loading, source loading, key
-normalization, and student filtering. Both EDA and ML therefore start from
-the same normalized student population instead of implementing slightly
-different versions of these rules.
+Shared functions centralize configuration loading, source loading, key
+normalization, and student filtering. Both EDA and master-table creation
+therefore start from the same normalized student population instead of
+implementing slightly different versions of these rules.
 
 Student identifiers and aid item codes are read as text so leading zeros and
 nulls are not lost to numeric inference. `STUDENT_ID` values are stripped
@@ -129,7 +129,7 @@ inputs in chunks.
 | `src/preprocessing/ingest_data.py` | Combines raw aid and term CSVs into Parquet outputs and checks row counts. |
 | `src/preprocessing/dataset_creation.py` | Loads configured inputs, normalizes keys, and restricts static and term tables to aid students. |
 | `src/preprocessing/eda_dataset_creation.py` | Creates separate aid/static and term/static joins and their A/B splits. |
-| `src/preprocessing/ml_dataset_creation.py` | Creates the one-row-per-student ML master table. |
+| `src/preprocessing/master_table_creation.py` | Creates the one-row-per-student master table used by later analysis and modeling. |
 | `src/utils/save.py` | Writes and round-trip verifies Parquet outputs. |
 
 ## Run the pipeline
@@ -139,7 +139,7 @@ Run these commands from the project directory:
 ```bash
 python -m src.preprocessing.ingest_data
 python -m src.preprocessing.eda_dataset_creation
-python -m src.preprocessing.ml_dataset_creation
+python -m src.preprocessing.master_table_creation
 ```
 
 The dataset-creation commands can also load existing combined Parquet files or
