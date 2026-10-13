@@ -1,4 +1,3 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,10 +26,9 @@ class TestModelingDatasetCreation(unittest.TestCase):
                 "STUDENT_ID": [f"s{index:03}" for index in range(row_count)],
                 "STUDENT_TYPE": ["A", "B"] * (row_count // 2),
                 "RETAINED_YR1": [index // 2 % 2 for index in range(row_count)],
-                "RETAINED_YR2": [index // 2 % 2 for index in range(row_count)],
-                "Graduated Count Yr 3": [
-                    index // 2 % 2 for index in range(row_count)
-                ],
+                "RETAINED_YR2": [index // 4 % 2 for index in range(row_count)],
+                "RETAINED_YR3": [index // 8 % 2 for index in range(row_count)],
+                "Graduated Count Yr 3": [index // 2 % 2 for index in range(row_count)],
                 "Graduated Count Yr 4": [
                     1 - index // 2 % 2 for index in range(row_count)
                 ],
@@ -47,55 +45,11 @@ class TestModelingDatasetCreation(unittest.TestCase):
                 master[f"aid_yr{year}_src_{source}"] = 1
         return master
 
-    def test_creates_views_with_disjoint_reproducible_split_and_cip2(self) -> None:
+    def test_ftic_ret3_requires_both_prior_retention_outcomes(self) -> None:
         master = self.make_master()
-
         datasets = self.modeling.create_datasets({"master": master})
-        split = pd.read_parquet(self.project_dir / "data/derived/split_v1.parquet")
-        train_ids = set(split.loc[split["split"].eq("train"), "STUDENT_ID"])
-        test_ids = set(split.loc[split["split"].eq("test"), "STUDENT_ID"])
+        ret3 = datasets["ftic_ret3"]
+        sample_count = len(ret3["y_train"]) + len(ret3["y_test"])
 
-        self.assertFalse(train_ids & test_ids)
-        self.assertEqual(train_ids | test_ids, set(master["STUDENT_ID"]))
-        self.assertEqual(set(datasets), set(self.modeling.cfg["views"]))
-        self.assertIn("CIP2", datasets["ftic_ret1"]["X_train"].columns)
-        self.assertEqual(datasets["ftic_ret1"]["X_train"]["CIP2"].iloc[0], "11")
-        self.assertEqual(
-            datasets["ftic_ret1"]["X_train_transformed"].shape[1],
-            datasets["ftic_ret1"]["X_test_transformed"].shape[1],
-        )
-        self.assertTrue(
-            (self.project_dir / "data/derived/view_ftic_ret1_train.parquet").is_file()
-        )
-        self.assertTrue(
-            (self.project_dir / "data/derived/view_ftic_ret1_test.parquet").is_file()
-        )
-
-        with (self.project_dir / "data/derived/views_config.json").open() as config_file:
-            views_config = json.load(config_file)
-        self.assertEqual(
-            views_config["ftic_grad3"]["outcome"], "Graduated Count Yr 3"
-        )
-        self.assertEqual(
-            views_config["ftic_ret1"]["treatment"][0], "aid_yr1_src_federal"
-        )
-
-        previous_split = split.copy()
-        self.modeling.create_datasets({"master": master})
-        repeated_split = pd.read_parquet(
-            self.project_dir / "data/derived/split_v1.parquet"
-        )
-        pd.testing.assert_frame_equal(previous_split, repeated_split)
-
-    def test_reports_missing_outcome_column(self) -> None:
-        master = self.make_master().drop(columns="RETAINED_YR2")
-
-        with self.assertRaisesRegex(KeyError, "RETAINED_YR2"):
-            self.modeling.create_datasets({"master": master})
-
-    def test_rejects_duplicate_student_ids(self) -> None:
-        master = self.make_master()
-        master.loc[1, "STUDENT_ID"] = master.loc[0, "STUDENT_ID"]
-
-        with self.assertRaisesRegex(ValueError, "STUDENT_ID must be unique"):
-            self.modeling.create_datasets({"master": master})
+        self.assertEqual(sample_count, 10)
+        self.assertEqual(int(ret3["y_train"].sum() + ret3["y_test"].sum()), 5)

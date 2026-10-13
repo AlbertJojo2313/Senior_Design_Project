@@ -60,26 +60,37 @@ output_path: data/derived/ml_dataset.parquet
 
 
 class TestDatasetSourceLoading(DatasetCreationTestCase):
-    def test_load_sources_normalizes_keys_and_filters_recipients(self) -> None:
+    def test_load_sources_normalizes_keys_and_filters_recipients_and_old_cohorts(
+        self,
+    ) -> None:
         raw_dir = self.project_dir / "data" / "raw_data"
         combined_dir = self.project_dir / "data" / "combined"
         raw_dir.mkdir(parents=True)
         combined_dir.mkdir(parents=True)
         (combined_dir / "financial_aid.csv").write_text(
-            "STUDENT_ID,ITEM_TYPE,Aid_Year\n 001 ,00001234,2020\n",
+            "STUDENT_ID,ITEM_TYPE,Aid_Year\n"
+            " 001 ,00001234,2020\n"
+            "002,00005678,2019\n",
             encoding="utf-8",
         )
         (combined_dir / "student_term.csv").write_text(
-            "STUDENT_ID,CF_BOE_TERM_ID\n001,202001\n999,202001\n",
+            "STUDENT_ID,CF_BOE_TERM_ID\n"
+            "001,202001\n"
+            "002,201801\n"
+            "999,202001\n",
             encoding="utf-8",
         )
         (raw_dir / "Student_Static_Data.csv").write_text(
-            "STUDENT_ID,COHORT_YEAR,STUDENT_TYPE\n001,2019-2020,A\n999,2019-2020,B\n",
+            "STUDENT_ID,COHORT_YEAR,STUDENT_TYPE\n"
+            "001,2019-2020,A\n"
+            "002,2018-2019,C\n"
+            "999,2019-2020,B\n",
             encoding="utf-8",
         )
 
         sources = self.master_table.load_sources()
         self.assertEqual(sources["financial_aid"]["ITEM_TYPE"].iloc[0], "00001234")
+        self.assertEqual(sources["financial_aid"]["STUDENT_ID"].tolist(), ["001"])
         self.assertEqual(sources["student_term"]["STUDENT_ID"].tolist(), ["001"])
         self.assertEqual(sources["student_static"]["STUDENT_ID"].tolist(), ["001"])
         self.assertEqual(sources["financial_aid"]["AID_YEAR"].iloc[0], 2020)
