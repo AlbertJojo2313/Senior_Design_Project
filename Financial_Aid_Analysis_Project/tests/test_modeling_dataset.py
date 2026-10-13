@@ -53,3 +53,33 @@ class TestModelingDatasetCreation(unittest.TestCase):
 
         self.assertEqual(sample_count, 10)
         self.assertEqual(int(ret3["y_train"].sum() + ret3["y_test"].sum()), 5)
+
+    def test_nullable_features_are_normalized_before_imputation(self) -> None:
+        master = self.make_master()
+        master["Entry_Age"] = pd.Series(master["Entry_Age"], dtype="Int64")
+        master.loc[[1, 3, 5, 7], "Entry_Age"] = pd.NA
+        master["Entry_HS_GPA"] = pd.Series(master["Entry_HS_GPA"], dtype="Float64")
+        master.loc[[1, 3, 5, 7], "Entry_HS_GPA"] = pd.NA
+        master["COHORT_YEAR"] = pd.Series(master["COHORT_YEAR"], dtype="string")
+        master.loc[[1, 3, 5, 7], "COHORT_YEAR"] = pd.NA
+        parquet_path = self.project_dir / "nullable_master.parquet"
+        master.to_parquet(parquet_path, index=False)
+        master = pd.read_parquet(parquet_path)
+
+        datasets = self.modeling.create_datasets({"master": master})
+        ftic = datasets["ftic_ret1"]
+
+        self.assertEqual(ftic["X_train"]["Entry_Age"].dtype, "float64")
+        self.assertEqual(ftic["X_train"]["COHORT_YEAR"].dtype, "object")
+        self.assertTrue(ftic["X_train_transformed"].size > 0)
+
+        raw_features = ftic["X_train"].copy()
+        raw_features["Entry_Age"] = raw_features["Entry_Age"].astype("Int64")
+        raw_features.loc[raw_features.index[0], "Entry_Age"] = pd.NA
+        raw_features["Entry_HS_GPA"] = raw_features["Entry_HS_GPA"].astype("Float64")
+        raw_features.loc[raw_features.index[0], "Entry_HS_GPA"] = pd.NA
+        raw_features["COHORT_YEAR"] = raw_features["COHORT_YEAR"].astype("string")
+        raw_features.loc[raw_features.index[0], "COHORT_YEAR"] = pd.NA
+        cfg = self.modeling.view_configs()["ftic_ret1"]
+        transformed = self.modeling.make_preprocessor(cfg).fit_transform(raw_features)
+        self.assertTrue(transformed.size > 0)
