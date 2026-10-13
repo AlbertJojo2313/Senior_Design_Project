@@ -12,7 +12,6 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-
 from src.preprocessing.dataset_creation import (
     load_config,
     resolve_project_dir,
@@ -124,8 +123,8 @@ class ModelingDatasetCreation:
         cfg: dict[str, Any],
     ) -> dict[str, Any]:
         eligible = master["STUDENT_TYPE"].eq(cfg["type"])
-        if cfg["require"] is not None:
-            eligible &= master[cfg["require"]].eq(1)
+        for column in cfg["require"]:
+            eligible &= master[column].eq(1)
         eligible &= master[cfg["treatment"]].sum(axis=1).gt(0)
         eligible &= master[cfg["outcome"]].notna()
         df = master.loc[eligible].merge(
@@ -221,7 +220,7 @@ class ModelingDatasetCreation:
                 + cfg["flags"]
                 + cfg["treatment"]
                 + [cfg["outcome"]]
-                + ([cfg["require"]] if cfg["require"] else [])
+                + cfg["require"]
             )
         }
         needed.update(("STUDENT_ID", "STUDENT_TYPE", "RETAINED_YR1"))
@@ -229,3 +228,11 @@ class ModelingDatasetCreation:
         if missing:
             raise KeyError(f"Columns not in ML master dataset: {sorted(missing)}")
         return master
+
+
+def main() -> None:
+    ModelingDatasetCreation().create_datasets()
+
+
+if __name__ == "__main__":
+    main()
