@@ -1,4 +1,4 @@
-"""Shared configuration and input-loading functions for dataset scripts."""
+"""Shared configuration and input-loading functions for dataset creation scripts."""
 
 from __future__ import annotations
 
@@ -74,6 +74,21 @@ def load_sources(project_dir: Path, logger: logging.Logger) -> dict[str, pd.Data
         frame["STUDENT_ID"] = frame["STUDENT_ID"].astype(str).str.strip()
     if not static["STUDENT_ID"].is_unique:
         raise ValueError("student_static must have one row per STUDENT_ID")
+
+    cohort_start_year = pd.to_numeric(
+        static["COHORT_YEAR"].astype("string").str[:4], errors="coerce"
+    )
+    eligible_ids = set(
+        static.loc[cohort_start_year >= 2019, "STUDENT_ID"]
+    )  # filtering out student ids that are earlier than 2019
+    logger.info(
+        "student_static: removed %s students outside the 2019+ cohort cutoff",
+        len(static) - len(eligible_ids),
+    )
+    tables["student_static"] = static[static["STUDENT_ID"].isin(eligible_ids)].copy()
+    for table_name in ("financial_aid", "student_term"):
+        frame = tables[table_name]
+        tables[table_name] = frame[frame["STUDENT_ID"].isin(eligible_ids)].copy()
 
     recipients = set(aid["STUDENT_ID"].dropna())
     for table_name in ("student_term", "student_static"):
