@@ -11,13 +11,21 @@ from sklearn.compose import ColumnTransformer, make_column_transformer
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 from src.preprocessing.dataset_creation import (
     load_config,
     resolve_project_dir,
 )
 from src.preprocessing.master_table_creation import MasterTableCreation
 from src.utils.save import save
+
+
+def _to_float_array(values: pd.DataFrame | np.ndarray) -> np.ndarray:
+    return pd.DataFrame(values).to_numpy(dtype=np.float64, na_value=np.nan)
+
+
+def _to_object_array(values: pd.DataFrame | np.ndarray) -> np.ndarray:
+    return pd.DataFrame(values).to_numpy(dtype=object, na_value=np.nan)
 
 
 class ModelingDatasetCreation:
@@ -170,10 +178,12 @@ class ModelingDatasetCreation:
     @staticmethod
     def make_preprocessor(cfg: dict[str, Any]) -> ColumnTransformer:
         num_pipe = make_pipeline(
+            FunctionTransformer(_to_float_array, validate=False),
             SimpleImputer(strategy="median", add_indicator=True),
             StandardScaler(),
         )
         cat_pipe = make_pipeline(
+            FunctionTransformer(_to_object_array, validate=False),
             SimpleImputer(strategy="constant", fill_value="missing"),
             OneHotEncoder(
                 handle_unknown="infrequent_if_exist",
