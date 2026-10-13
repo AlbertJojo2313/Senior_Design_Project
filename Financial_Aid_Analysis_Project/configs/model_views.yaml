@@ -1,7 +1,7 @@
 input_path: data/derived/master_table.parquet
 split_path: data/derived/split_v1.parquet
-views_output_dir: data/derived
-views_config_path: data/derived/views_config.json
+views_output_dir: data/derived/views
+views_config_path: data/derived/views/views_config.json
 test_size: 0.2
 random_state: 42
 include_entry_load: false
@@ -25,34 +25,40 @@ views:
     cohort: ftic
     outcome: RETAINED_YR1
     aid_years: [1]
-    require: null
+    require: []
   ftic_ret2:
     cohort: ftic
     outcome: RETAINED_YR2
     aid_years: [1, 2]
-    require: RETAINED_YR1
+    require: [RETAINED_YR1]
+  ftic_ret3:
+    cohort: ftic
+    outcome: RETAINED_YR3
+    aid_years: [1, 2, 3]
+    require: [RETAINED_YR1, RETAINED_YR2]
+
   ftic_grad3:
     cohort: ftic
     outcome: "Graduated Count Yr 3"
     aid_years: [1]
-    require: null
+    require: []
   ftic_grad4:
     cohort: ftic
     outcome: "Graduated Count Yr 4"
     aid_years: [1]
-    require: null
+    require: []
   tr_ret1:
     cohort: transfer
     outcome: RETAINED_YR1
     aid_years: [1]
-    require: null
+    require: []
   tr_ret2:
     cohort: transfer
     outcome: RETAINED_YR2
     aid_years: [1, 2]
-    require: RETAINED_YR1
+    require: [RETAINED_YR1]
   tr_grad3:
     cohort: transfer
     outcome: "Graduated Count Yr 3"
     aid_years: [1]
-    require: null
+    require: []
