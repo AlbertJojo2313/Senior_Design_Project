@@ -34,10 +34,29 @@ The static student table is read separately by dataset creation from
    the shared save helper checks shape and dtypes. If writing or validation
    fails, the incomplete output is removed and the error is raised.
 
-The data-ingestion reader yields batches as its workers finish; row ordering
-across source files is not a guaranteed part of the output contract. Consumers
-should rely on keys and sort explicitly when chronological or stable ordering
-is required.
+### Row order
+
+Files are read in parallel, but the combined output always comes back in file
+order: every row from the first file (in sorted path order), then every row
+from the second, and so on. Rows within a file keep their original order.
+
+This wasn't always the case. The reader used to hand back batches in whatever
+order the worker threads happened to finish, so a small file could jump ahead
+of a larger one that sorted before it. Nothing downstream was broken by this,
+because the pipeline joins on `STUDENT_ID` and sorts terms explicitly. But it
+meant the same input could produce differently ordered output from run to run,
+which made the ingestion test fail some of the time and made outputs harder to
+compare. Now, if a later file finishes early, its batches are held until the
+earlier files are done.
+
+The trade-off is memory. Batches from files that finish early sit in memory
+until their turn comes. `load()` keeps the whole dataset in memory anyway, so
+in practice this changes nothing for the normal ingestion command. It only
+matters if you call `iter_chunks()` directly and expect it to stream with a
+small, fixed memory footprint.
+
+Downstream code should still join on keys rather than rely on row position,
+and should sort explicitly when it needs chronological order.
 
 ## Run ingestion
 

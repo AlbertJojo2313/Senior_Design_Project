@@ -115,6 +115,45 @@ Aid source groups are preserved independently. In particular, the ML config
 includes `other` in `aid_sources`, so it creates its own `aid_yrN_src_other`
 indicator instead of combining those records with private aid.
 
+### Entry characteristics for transfer and FTIC students
+
+Transfer and FTIC students arrive with different academic records, so the
+modeling views in `configs/model_views.yaml` give each group its own feature
+list instead of sharing one.
+
+| Cohort | Entry features |
+| --- | --- |
+| FTIC (`STUDENT_TYPE = B`) | `Entry_Age`, `Entry_HS_GPA`, `ACT_TOTAL`, `Credits_Transfered_Max` |
+| Transfer (`STUDENT_TYPE = A`) | `Entry_Age`, `Credits_Transfered_Max`, `AA_AS` |
+
+**High school GPA was removed from the transfer views.** Transfer students
+mostly don't have a high school GPA on record, so the column was almost
+entirely missing for them. The preprocessor fills missing numbers with the
+median and adds a "was missing" indicator, which meant the feature ended up
+measuring whether the field was blank rather than anything about the student.
+Leaving it in made the transfer models look like they accounted for prior
+achievement when they didn't.
+
+**The associate-degree flag (`AA_AS`) was added in its place.** Whether a
+student transfers in with an AA or AS degree is available for this group and
+says something real about how prepared they are. It goes in the numeric list
+rather than `flags` for two reasons: `flags` is overwritten for every view by
+the entry-load setting, and the numeric pipeline fills any missing values and
+marks them, while `flags` passes values through untouched. Scaling a 0/1
+column does no harm.
+
+**FTIC views still use high school GPA.** Among first-time students, HS GPA
+tends to fall in a narrow band, so it won't separate students very well. It's
+still the main measure of prior achievement we have, and it matters most when
+comparing students with different aid types. Institutional scholarships often
+go to students with higher entry GPAs, so dropping it would make that
+selection harder to account for. Keep its narrow range in mind as a
+limitation when reading FTIC results.
+
+A better transfer measure would be the GPA from the student's previous
+institution. It isn't in the master table yet, but it's worth adding if the
+source data has it.
+
 Parquet is used for combined and derived datasets because it preserves column
 types, nullable integer flags, text codes, and null values more reliably than
 CSV. Pandas is used for the dataset transformations—filtering, joins,
@@ -125,7 +164,7 @@ inputs in chunks.
 
 | Component | Responsibility |
 | --- | --- |
-| `src/preprocessing/data_ingestion.py` | Recursively discovers matching CSVs and reads them in chunks; preserves `STUDENT_ID` and `ITEM_TYPE` as text. |
+| `src/preprocessing/data_ingestion.py` | Recursively discovers matching CSVs and reads them in parallel chunks, returning rows in file order; preserves `STUDENT_ID` and `ITEM_TYPE` as text. |
 | `src/preprocessing/ingest_data.py` | Combines raw aid and term CSVs into Parquet outputs and checks row counts. |
 | `src/preprocessing/dataset_creation.py` | Loads configured inputs, normalizes keys, and restricts static and term tables to aid students. |
 | `src/preprocessing/eda_dataset_creation.py` | Creates separate aid/static and term/static joins and their A/B splits. |
