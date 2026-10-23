@@ -85,7 +85,7 @@ output_columns:
   #- first_term_id
   # - first_term_descr
   # - first_acad_year
-  # - Credits_Transfered
+  - Credits_Transfered  # first-term value; pre-treatment covariate for impact views
   # - CUM_TOTHRS_EARN_BEGIN_TERM
   - CUM_Credits_Taken_UCF_BEGIN_TERM
   - Credits_Transfered_Max

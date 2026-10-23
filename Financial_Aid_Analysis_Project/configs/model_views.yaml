@@ -18,7 +18,7 @@ cohorts:
     cat: [COHORT_YEAR, CIP2]
   transfer:
     type: A
-    num: [Entry_Age, Entry_HS_GPA, Credits_Transfered_Max]
+    num: [Entry_Age, Credits_Transfered_Max, AA_AS]
     cat: [COHORT_YEAR, CIP2]
 views:
   ftic_ret1:
@@ -62,3 +62,48 @@ views:
     outcome: "Graduated Count Yr 3"
     aid_years: [1]
     require: []
+
+# Impact (treatment-effect) views: one full-sample file per cohort x treatment
+# year x aid source. RETAINED_YRk means the student came back for year k + 1.
+# Year-k population: students enrolled in year k who received some aid that
+# year; controls are recipients who did not receive that source. Covariates
+# are measured before year-k aid: entry characteristics, earlier-year term
+# history, and earlier-year aid.
+impact_output_dir: data/derived/impact_views
+impact_config_path: data/derived/impact_views/impact_views_config.json
+impact_history_metrics: [end_ucf_gpa, credits_enrolled, credits_earned]
+impact_cohorts:
+  ftic:
+    type: B
+    num: [Entry_Age, Entry_HS_GPA, SAT_TOTAL, ACT_TOTAL, Credits_Transfered]
+    cat: [COHORT_YEAR, CIP2]
+    outcomes:  # by treatment year; only outcomes measured after that year's aid
+      1:
+        - RETAINED_YR1
+        - RETAINED_THRU_YR2
+        - RETAINED_THRU_YR3
+        - "Graduated Count Yr 3"
+        - "Graduated Count Yr 4"
+      2:
+        - RETAINED_YR2
+        - RETAINED_THRU_YR3
+        - "Graduated Count Yr 3"
+        - "Graduated Count Yr 4"
+      3:
+        - RETAINED_YR3
+        - "Graduated Count Yr 3"
+        - "Graduated Count Yr 4"
+  transfer:
+    type: A
+    num: [Entry_Age, Credits_Transfered, AA_AS]
+    cat: [COHORT_YEAR, CIP2]
+    outcomes:
+      1:
+        - RETAINED_YR1
+        - RETAINED_THRU_YR2
+        - "Graduated Count Yr 3"
+      2:
+        - RETAINED_YR2
+        - "Graduated Count Yr 3"
+      3:
+        - "Graduated Count Yr 3"
