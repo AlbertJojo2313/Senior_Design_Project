@@ -100,12 +100,15 @@ class DataIngestor:
             output.put((file_index, "done", None))
 
     def iter_chunks(self) -> Iterator[pd.DataFrame]:
-        """Yields chunks as workers finish reading them, in arrival order (not file order)"""
+        """Yields chunks in file order; chunks from files ahead of the current one are buffered"""
         files = self.discover_files()
         output: Queue[_QueueItem] = Queue(maxsize=self.queue_size)
         worker_count = min(self.max_workers, len(files))
         remaining = len(files)
         errors: list[tuple[Path, BaseException]] = []
+        pending: dict[int, list[pd.DataFrame]] = {}
+        finished: set[int] = set()
+        next_index = 0  # file whose chunks are yielded directly
 
         with ThreadPoolExecutor(max_workers=worker_count) as pool:
             for file_index, path in enumerate(files):
@@ -114,12 +117,19 @@ class DataIngestor:
             while remaining > 0:
                 raw_item = output.get()
                 match raw_item:
-                    case (_, "chunk", pd.DataFrame() as chunk):
-                        yield chunk
+                    case (file_index, "chunk", pd.DataFrame() as chunk):
+                        if file_index == next_index:
+                            yield chunk
+                        else:
+                            pending.setdefault(file_index, []).append(chunk)
                     case (file_index, "error", BaseException() as error):
                         errors.append((files[file_index], error))
-                    case (_, "done", _):
+                    case (file_index, "done", _):
                         remaining -= 1
+                        finished.add(file_index)
+                        while next_index in finished:
+                            next_index += 1
+                            yield from pending.pop(next_index, [])
                     case _:
                         raise TypeError(f"Unexpected queue item: {raw_item!r}")
 
