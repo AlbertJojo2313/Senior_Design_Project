@@ -243,9 +243,145 @@ class ModelingDatasetCreation:
             raise KeyError(f"Columns not in ML master dataset: {sorted(missing)}")
         return master
 
+    def aid_columns(self, year: int) -> list[str]:
+        return [f"aid_yr{year}_src_{source}" for source in self.cfg["aid_sources"]]
+
+    def history_columns(self, year: int) -> list[str]:
+        """Term-history summaries from the years before `year` (pre-treatment)."""
+        return [
+            f"yr{prior}_{metric}"
+            for prior in range(1, year)
+            for metric in self.cfg["impact_history_metrics"]
+        ]
+
+    def prepare_impact_master(self, master: pd.DataFrame) -> pd.DataFrame:
+        """Add CIP2 and cumulative retention outcomes; check impact columns exist."""
+        master = master.copy()
+        if "Entry_CIP" in master:
+            master["CIP2"] = master["Entry_CIP"].astype("string").str[:2]
+
+        # Cumulative outcomes replace filtering on later retention, which would
+        # drop the students that aid may have kept enrolled.
+        retained = ["RETAINED_YR1", "RETAINED_YR2", "RETAINED_YR3"]
+        if set(retained) <= set(master.columns):
+            yr1, yr2, yr3 = (master[column].astype("boolean") for column in retained)
+            master["RETAINED_THRU_YR2"] = (yr1 & yr2).astype("Int8")
+            master["RETAINED_THRU_YR3"] = (yr1 & yr2 & yr3).astype("Int8")
+
+        needed = {"STUDENT_ID", "STUDENT_TYPE"}
+        for cohort in self.cfg["impact_cohorts"].values():
+            needed.update(cohort["num"] + cohort["cat"])
+            for year, outcomes in cohort["outcomes"].items():
+                needed.update(outcomes)
+                needed.update(self.history_columns(year))
+                needed.update(
+                    column for prior in range(1, year + 1)
+                    for column in self.aid_columns(prior)
+                )
+                needed.update(f"RETAINED_YR{prior}" for prior in range(1, year))
+        missing = needed - set(master.columns)
+        if missing:
+            raise KeyError(f"Columns not in ML master dataset: {sorted(missing)}")
+        return master
+
+    @staticmethod
+    def build_impact_view(
+        population: pd.DataFrame,
+        num: list[str],
+        cat: list[str],
+        prior_aid: list[str],
+        treatment: str,
+        concurrent: list[str],
+        outcomes: list[str],
+    ) -> pd.DataFrame:
+        """Full-sample view: treatment flag, raw covariates, missing flags, outcomes."""
+        missing_flags = pd.DataFrame(
+            {
+                f"{column}_missing": population[column].isna().astype("Int8")
+                for column in num
+            },
+            index=population.index,
+        )
+        view = pd.concat(
+            [
+                population[["STUDENT_ID"]],
+                population[treatment].astype("Int8").rename("treated"),
+                population[num + cat + prior_aid],
+                missing_flags,
+                population[concurrent],
+                population[outcomes],
+            ],
+            axis=1,
+        ).reset_index(drop=True)
+        view[cat] = view[cat].astype("string")
+        return view
+
+    def create_impact_datasets(
+        self, master: pd.DataFrame | None = None
+    ) -> dict[str, pd.DataFrame]:
+        """Save one impact view per cohort, treatment year, and aid source."""
+        master = self.prepare_impact_master(
+            master if master is not None else self.load_master()
+        )
+        output_dir = self.project_dir / self.cfg["impact_output_dir"]
+        datasets: dict[str, pd.DataFrame] = {}
+        roles: dict[str, dict[str, Any]] = {}
+
+        for cohort_name, cohort in self.cfg["impact_cohorts"].items():
+            for year, outcomes in cohort["outcomes"].items():
+                aid_columns = self.aid_columns(year)
+                # Enrolled in year k = came back for every year before it.
+                enrolled = master["STUDENT_TYPE"].eq(cohort["type"])
+                for prior in range(1, year):
+                    enrolled &= master[f"RETAINED_YR{prior}"].eq(1)
+                # Recipients-only comparison: controls received other aid that year.
+                population = master[enrolled & master[aid_columns].eq(1).any(axis=1)]
+                num = cohort["num"] + self.history_columns(year)
+                prior_aid = [
+                    column for prior in range(1, year) for column in self.aid_columns(prior)
+                ]
+
+                for treatment in aid_columns:
+                    source = treatment.rsplit("_src_", 1)[1]
+                    name = f"{cohort_name}_yr{year}_{source}"
+                    concurrent = [c for c in aid_columns if c != treatment]
+                    view = self.build_impact_view(
+                        population, num, cohort["cat"], prior_aid,
+                        treatment, concurrent, outcomes,
+                    )
+                    n_treated = int(view["treated"].sum())
+                    if n_treated in (0, len(view)):
+                        self.logger.warning(
+                            "%s has no %s group; effect cannot be estimated",
+                            name,
+                            "treated" if n_treated == 0 else "control",
+                        )
+                    save(view, output_dir / f"impact_{name}.parquet")
+                    datasets[name] = view
+                    roles[name] = {
+                        "student_type": cohort["type"],
+                        "treatment_year": year,
+                        "treatment": treatment,
+                        "treatment_column": "treated",
+                        "covariates": num + cohort["cat"] + prior_aid,
+                        "missing_indicators": [f"{c}_missing" for c in num],
+                        "concurrent_aid": concurrent,
+                        "outcomes": outcomes,
+                        "n": len(view),
+                        "n_treated": n_treated,
+                    }
+                    self.log(f"{name:28} n {len(view):6}  treated {n_treated:6}")
+
+        config_path = self.project_dir / self.cfg["impact_config_path"]
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with config_path.open("w", encoding="utf-8") as config_file:
+            json.dump(roles, config_file, indent=2)
+        return datasets
 
 def main() -> None:
-    ModelingDatasetCreation().create_datasets()
+    # Prediction views (create_datasets) are kept but not run: the project
+    # estimates aid effects, which only needs the impact views.
+    ModelingDatasetCreation().create_impact_datasets()
 
 
 if __name__ == "__main__":
