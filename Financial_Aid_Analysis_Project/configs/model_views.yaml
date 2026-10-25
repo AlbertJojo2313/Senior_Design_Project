@@ -80,13 +80,10 @@ impact_cohorts:
     outcomes:  # by treatment year; only outcomes measured after that year's aid
       1:
         - RETAINED_YR1
-        - RETAINED_THRU_YR2
-        - RETAINED_THRU_YR3
         - "Graduated Count Yr 3"
         - "Graduated Count Yr 4"
       2:
         - RETAINED_YR2
-        - RETAINED_THRU_YR3
         - "Graduated Count Yr 3"
         - "Graduated Count Yr 4"
       3:
@@ -100,7 +97,6 @@ impact_cohorts:
     outcomes:
       1:
         - RETAINED_YR1
-        - RETAINED_THRU_YR2
         - "Graduated Count Yr 3"
       2:
         - RETAINED_YR2
